@@ -56,13 +56,13 @@ def optimize_course_scense():
 你需要输出以下内容，每个内容都要简洁明确：
 1. 场景名称：用简短的词语概括这个场景
 2. 场景目标：描述这个培训场景要达到的具体目标
-3. AI角色：描述AI扮演的客户角色，包括客户的身份和特征
-4. 员工角色：描述客服人员应该扮演的角色，包括岗位和职责
+3. AI角色：描述AI扮演的客户角色（简短一些）
+4. 员工角色：描述客服人员应该扮演的角色（简短一些）
 5. 开场白：设计一个专业、得体的开场白
-6. 要求指令：列出在对话过程中需要注意的关键点和要求
+6. 要求指令：列出在对话过程中需要注意的关键点和要求（不超过5条）
 
 请以JSON格式返回，包含以下字段：
-sceneName, sceneGoal, aiRole, myRole, openingLine, instructions"""
+sceneName(string类型), sceneGoal(string类型), aiRole(string类型), myRole(string类型), openingLine(string类型), instructions(list类型 )"""
 
     # 组合用户输入
     combined_input = scene_description
@@ -73,26 +73,39 @@ sceneName, sceneGoal, aiRole, myRole, openingLine, instructions"""
     response = chat_completion(
         combined_input,
         [],  # 空历史记录
-        'deepseek-v3',
+        'deepseek-r1',
         system_prompt=system_prompt
     )
-    print(f'llm response: {response}')
+    print(f'------llm response: {response}')
     try:
         # 解析大模型返回的JSON响应
-        if isinstance(response, dict) and 'content' in response:
-            result = json.loads(response['content'])
+        if isinstance(response, dict):
+            result = {}
+            content = response.get('content', '').strip('```json\n').strip('```')
+            reasoning = response.get('reasoning', '')  # 获取推理过程
+            
+            try:
+                result = json.loads(content)
+                # 使用json.dumps进行格式化打印，设置缩进为2，确保中文正确显示
+                print("\n=== 解析后的场景数据 ===")
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+                print("========================\n")
+            except json.JSONDecodeError:
+                return jsonify({'error': '响应解析失败'}), 400
+
+            instructions = result.get('instructions', [])
+            instructions_str="\n".join([f" {i + 1}. {instruction}" for i, instruction in enumerate(instructions)])    
             return jsonify({
                 'sceneName': result.get('sceneName', ''),
                 'sceneGoal': result.get('sceneGoal', ''),
                 'aiRole': result.get('aiRole', ''),
-                'myRole': result.get('myRole', ''),
+                'myRole': result.get('myRole', ''), 
                 'openingLine': result.get('openingLine', ''),
-                'instructions': result.get('instructions', '')
+                'instructions': instructions_str,
+                'reasoning': reasoning  # 添加推理过程到返回值
             })
         else:
             return jsonify({'error': '无效的响应格式'}), 400
-    except json.JSONDecodeError:
-        return jsonify({'error': '响应解析失败'}), 400
     except Exception as e:
         return jsonify({'error': f'处理失败: {str(e)}'}), 400
 

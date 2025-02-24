@@ -16,6 +16,7 @@ interface SceneData {
   myRole: string;
   openingLine: string;
   instructions: string;
+  reasoning?: string;
 }
 
 function App() {
@@ -75,7 +76,7 @@ function App() {
             variant="outlined"
             sx={{ mb: 2 }}
           />
-          <Box display="flex" gap={2}>
+          <Box display="flex" gap={2} sx={{ mb: 2 }}>
             <Button
               variant="contained"
               component="label"
@@ -95,6 +96,17 @@ function App() {
               AI优化
             </Button>
           </Box>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            value={sceneData.reasoning || ''}
+            label="AI推理过程"
+            variant="outlined"
+            InputProps={{
+              readOnly: true,
+            }}
+          />
         </Grid>
 
         {/* 右侧部分 */}
