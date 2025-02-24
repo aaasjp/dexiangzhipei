@@ -5,9 +5,15 @@ import {
   TextField, 
   Button, 
   Box,
-  Typography
+  Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
 } from '@mui/material';
 import axios from 'axios';
+import CloseIcon from '@mui/icons-material/Close';
 
 interface SceneData {
   sceneName: string;
@@ -30,6 +36,10 @@ function App() {
     openingLine: '',
     instructions: ''
   });
+
+  const [openDialog, setOpenDialog] = useState(false);
+  const [reasoningContent, setReasoningContent] = useState('');
+  const [courseContent, setCourseContent] = useState('');
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -59,6 +69,66 @@ function App() {
       console.error('优化请求失败:', error);
       alert('优化请求失败');
     }
+  };
+
+  const handleCreateCourse = async () => {
+    try {
+      setReasoningContent(''); // 清空推理内容
+      setCourseContent(''); // 清空课程内容
+      setOpenDialog(true); // 打开对话框
+      
+      const formData = new FormData();
+      formData.append('scene_description', userInput);
+      formData.append('sceneName', sceneData.sceneName);
+      formData.append('sceneGoal', sceneData.sceneGoal);
+      formData.append('aiRole', sceneData.aiRole);
+      formData.append('myRole', sceneData.myRole);
+      formData.append('openingLine', sceneData.openingLine);
+      formData.append('instructions', sceneData.instructions);
+      if (file) {
+        formData.append('file', file);
+      }
+
+      const response = await fetch('http://127.0.0.1:5000/ai_create_course', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const reader = response.body?.getReader();
+      if (!reader) return;
+
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const text = decoder.decode(value);
+        const lines = text.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'reasoning') {
+                setReasoningContent(prev => prev + data.text);
+              } else {
+                setCourseContent(prev => prev + data.text);
+              }
+            } catch (e) {
+              console.error('Error parsing SSE data:', e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('创建课程失败:', error);
+      alert('创建课程失败');
+      setOpenDialog(false);
+    }
+  };
+
+  const handleCloseDialog = () => {
+    setOpenDialog(false);
   };
 
   return (
@@ -99,13 +169,14 @@ function App() {
           <TextField
             fullWidth
             multiline
-            rows={4}
+            rows={8}
             value={sceneData.reasoning || ''}
             label="AI推理过程"
             variant="outlined"
             InputProps={{
               readOnly: true,
             }}
+            sx={{ mb: 2 }}
           />
         </Grid>
 
@@ -148,9 +219,89 @@ function App() {
               onChange={(e) => setSceneData({...sceneData, instructions: e.target.value})}
               fullWidth
             />
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleCreateCourse}
+              sx={{ mt: 2 }}
+            >
+              AI建课
+            </Button>
           </Box>
         </Grid>
       </Grid>
+
+      <Dialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            height: '80vh', // 设置对话框高度
+            display: 'flex',
+            flexDirection: 'column'
+          }
+        }}
+      >
+        <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">课程内容</Typography>
+          <IconButton
+            aria-label="close"
+            onClick={handleCloseDialog}
+            sx={{ color: 'grey.500' }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ flex: 1, overflow: 'auto' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {/* 推理内容部分 */}
+            <Box
+              sx={{
+                flex: 1,
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'monospace',
+                fontSize: '1rem',
+                lineHeight: 1.5,
+                mb: 2,
+                p: 2,
+                bgcolor: '#f5f5f5',
+                borderRadius: 1,
+                overflow: 'auto'
+              }}
+            >
+              <Typography variant="subtitle1" gutterBottom>
+                推理过程：
+              </Typography>
+              {reasoningContent || '正在生成推理过程...'}
+            </Box>
+            
+            {/* 课程内容部分 */}
+            <Box
+              sx={{
+                flex: 1,
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'monospace',
+                fontSize: '1rem',
+                lineHeight: 1.5,
+                p: 2,
+                bgcolor: '#f5f5f5',
+                borderRadius: 1,
+                overflow: 'auto'
+              }}
+            >
+              <Typography variant="subtitle1" gutterBottom>
+                课程内容：
+              </Typography>
+              {courseContent || '正在生成课程内容...'}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog}>关闭</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
