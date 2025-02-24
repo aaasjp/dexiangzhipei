@@ -86,7 +86,9 @@ sceneName(string类型), sceneGoal(string类型), aiRole(string类型), myRole(s
             
             try:
                 result = json.loads(content)
-                # 使用json.dumps进行格式化打印，设置缩进为2，确保中文正确显示
+                # 添加默认的对话轮数
+                result['dialogTurns'] = 10
+                
                 print("\n=== 解析后的场景数据 ===")
                 print(json.dumps(result, indent=2, ensure_ascii=False))
                 print("========================\n")
@@ -102,7 +104,8 @@ sceneName(string类型), sceneGoal(string类型), aiRole(string类型), myRole(s
                 'myRole': result.get('myRole', ''), 
                 'openingLine': result.get('openingLine', ''),
                 'instructions': instructions_str,
-                'reasoning': reasoning  # 添加推理过程到返回值
+                'dialogTurns': result.get('dialogTurns', 10),
+                'reasoning': reasoning
             })
         else:
             return jsonify({'error': '无效的响应格式'}), 400
@@ -120,6 +123,7 @@ def ai_create_course():
         my_role = request.form.get('myRole', '')
         opening_line = request.form.get('openingLine', '')
         instructions = request.form.get('instructions', '')
+        diag_turns = int(request.form.get('diag_turns', '10'))  # 获取对话轮数，默认为10
         
         # 处理文件上传
         file = request.files.get('file')
@@ -141,8 +145,8 @@ def ai_create_course():
             else:
                 return Response('Unsupported file format', status=400)
 
-        # 构建用户提示词
-        system_prompt = f"""你是一个专业的培训对话生成专家。请基于以下信息生成一个10轮的培训对话：
+        # 修改系统提示词
+        system_prompt = f"""你是一个专业的培训对话生成专家。请基于以下信息生成一个{diag_turns}轮的培训对话：
 
 场景描述：{scene_description}
 场景名称：{scene_name}
@@ -154,7 +158,7 @@ AI角色：{ai_role}
 
 参考资料：{file_content if file_content else '无'}
 
-请生成10轮对话，要求：
+请生成{diag_turns}轮对话，要求：
 1. 对话要符合场景描述和目标
 2. AI扮演{ai_role}角色
 3. 员工扮演{my_role}角色
