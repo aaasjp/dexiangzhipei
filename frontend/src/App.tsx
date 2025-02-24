@@ -22,6 +22,7 @@ interface SceneData {
   myRole: string;
   openingLine: string;
   instructions: string;
+  dialogTurns: number;
   reasoning?: string;
 }
 
@@ -34,12 +35,14 @@ function App() {
     aiRole: '',
     myRole: '',
     openingLine: '',
-    instructions: ''
+    instructions: '',
+    dialogTurns: 10
   });
 
   const [openDialog, setOpenDialog] = useState(false);
   const [reasoningContent, setReasoningContent] = useState('');
   const [courseContent, setCourseContent] = useState('');
+  const [adjustInstruction, setAdjustInstruction] = useState('如果你对生成的课程不满意，请输入修改建议');
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -85,6 +88,7 @@ function App() {
       formData.append('myRole', sceneData.myRole);
       formData.append('openingLine', sceneData.openingLine);
       formData.append('instructions', sceneData.instructions);
+      formData.append('diag_turns', sceneData.dialogTurns.toString());
       if (file) {
         formData.append('file', file);
       }
@@ -127,6 +131,60 @@ function App() {
     }
   };
 
+  const handleAdjustCourse = async () => {
+    try {
+      setReasoningContent('');
+      setCourseContent('');
+      
+      const formData = new FormData();
+      formData.append('scene_description', userInput);
+      formData.append('sceneName', sceneData.sceneName);
+      formData.append('sceneGoal', sceneData.sceneGoal);
+      formData.append('aiRole', sceneData.aiRole);
+      formData.append('myRole', sceneData.myRole);
+      formData.append('openingLine', sceneData.openingLine);
+      formData.append('instructions', sceneData.instructions);
+      formData.append('diag_turns', sceneData.dialogTurns.toString());
+      formData.append('adjust_instruction', adjustInstruction);
+      formData.append('course_content', courseContent);
+
+      const response = await fetch('http://127.0.0.1:5000/adjust_ai_create_course', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const reader = response.body?.getReader();
+      if (!reader) return;
+
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const text = decoder.decode(value);
+        const lines = text.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'reasoning') {
+                setReasoningContent(prev => prev + data.text);
+              } else {
+                setCourseContent(prev => prev + data.text);
+              }
+            } catch (e) {
+              console.error('Error parsing SSE data:', e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('调整课程失败:', error);
+      alert('调整课程失败');
+    }
+  };
+
   const handleCloseDialog = () => {
     setOpenDialog(false);
   };
@@ -163,7 +221,7 @@ function App() {
               variant="contained"
               onClick={handleOptimize}
             >
-              AI优化
+              场景优化
             </Button>
           </Box>
           <TextField
@@ -217,6 +275,14 @@ function App() {
               label="要求指令"
               value={sceneData.instructions}
               onChange={(e) => setSceneData({...sceneData, instructions: e.target.value})}
+              fullWidth
+            />
+            <TextField
+              label="对话轮数"
+              type="number"
+              value={sceneData.dialogTurns}
+              onChange={(e) => setSceneData({...sceneData, dialogTurns: Math.max(1, parseInt(e.target.value) || 10)})}
+              inputProps={{ min: 1 }}
               fullWidth
             />
             <Button
@@ -296,6 +362,24 @@ function App() {
               </Typography>
               {courseContent || '正在生成课程内容...'}
             </Box>
+          </Box>
+          <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+            <TextField
+              fullWidth
+              multiline
+              rows={2}
+              value={adjustInstruction}
+              onChange={(e) => setAdjustInstruction(e.target.value)}
+              placeholder="如果你对生成的课程不满意，请输入修改建议"
+              variant="outlined"
+            />
+            <Button
+              variant="contained"
+              onClick={handleAdjustCourse}
+              sx={{ minWidth: '120px' }}
+            >
+              优化建课
+            </Button>
           </Box>
         </DialogContent>
         <DialogActions>

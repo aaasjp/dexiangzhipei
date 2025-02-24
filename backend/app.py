@@ -196,6 +196,74 @@ AI角色：{ai_role}
     except Exception as e:
         return Response(f'Error: {str(e)}', status=500)
 
+@app.route('/adjust_ai_create_course', methods=['POST'])
+def adjust_ai_create_course():
+    try:
+        # Get all parameters
+        scene_description = request.form.get('scene_description', '')
+        scene_name = request.form.get('sceneName', '')
+        scene_goal = request.form.get('sceneGoal', '')
+        ai_role = request.form.get('aiRole', '')
+        my_role = request.form.get('myRole', '')
+        opening_line = request.form.get('openingLine', '')
+        instructions = request.form.get('instructions', '')
+        diag_turns = int(request.form.get('diag_turns', '10'))
+        adjust_instruction = request.form.get('adjust_instruction', '')
+        course_content = request.form.get('course_content', '')
+
+        # Modified system prompt for adjustment
+        system_prompt = f"""你是一个专业的培训对话生成专家。请基于以下信息和调整建议重新生成一个{diag_turns}轮的培训对话：
+
+场景描述：{scene_description}
+场景名称：{scene_name}
+场景目标：{scene_goal}
+AI角色：{ai_role}
+员工角色：{my_role}
+开场白：{opening_line}
+指令要求：{instructions}
+
+已生成的课程内容：
+{course_content}
+
+用户的调整建议：
+{adjust_instruction}
+
+请根据用户的调整建议，对已生成的课程内容进行优化和调整，生成新的{diag_turns}轮对话。要求：
+1. 对话要符合场景描述和目标
+2. AI扮演{ai_role}角色
+3. 员工扮演{my_role}角色
+4. 第一句话必须是员工说的开场白
+5. 整个对话必须严格遵守指令要求
+6. 对话要自然流畅，符合真实场景
+7. 必须是员工和客户的轮流对话，不要员工或者AI连续说两轮的情况
+
+请输出对话内容，每一轮都要标明是谁在说话,生成的对话格式如下:
+{my_role}: 第一句话
+{ai_role}: 第二句话
+{my_role}: 第三句话
+{ai_role}: 第四句话
+...
+"""
+
+        # Use streaming response
+        def generate():
+            for is_reasoning, content in chat_completion_stream(
+                "",  # Empty user input as all info is in system_prompt
+                [],  # Empty history
+                'deepseek-r1',
+                system_prompt=system_prompt
+            ):
+                response_data = {
+                    'type': 'reasoning' if is_reasoning else 'content',
+                    'text': content
+                }
+                yield f"data: {json.dumps(response_data)}\n\n"
+
+        return Response(generate(), mimetype='text/event-stream')
+
+    except Exception as e:
+        return Response(f'Error: {str(e)}', status=500)
+
 if __name__ == '__main__':
     print("Starting Flask application...")  # 添加启动日志
     app.run(debug=True, host='0.0.0.0', port=5000) 
