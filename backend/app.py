@@ -6,6 +6,7 @@ import fitz  # PyMuPDF
 from PIL import Image
 import io
 import pytesseract  # For image text extraction
+import os
 
 app = Flask(__name__)
 CORS(app)  # 启用CORS
@@ -263,6 +264,67 @@ AI角色：{ai_role}
 
     except Exception as e:
         return Response(f'Error: {str(e)}', status=500)
+
+@app.route('/save_course', methods=['POST'])
+def save_course():
+    try:
+        data = request.json
+        course_content = data.get('course_content', '')
+        
+        # Split content into lines and parse dialogues
+        lines = course_content.strip().split('\n')
+        dialogues = []
+        current_dialogue = {}
+        
+        # Get first two lines to determine roles
+        my_role = None
+        ai_role = None
+        for line in lines[:2]:  # Only check first two lines
+            if ':' in line:
+                role = line.split(':', 1)[0].strip()
+                if not my_role:
+                    my_role = role
+                elif role != my_role:
+                    ai_role = role
+                    break
+        
+        if not my_role or not ai_role:
+            return jsonify({'error': '无法从对话内容中识别出角色'}), 400
+            
+        # Parse dialogues
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Split by colon to separate role and content
+            if ':' in line:
+                role, content = line.split(':', 1)
+                role = role.strip()
+                content = content.strip()
+                
+                if role == my_role:
+                    current_dialogue = {my_role: content}
+                elif role == ai_role:
+                    if current_dialogue:
+                        current_dialogue[ai_role] = content
+                        dialogues.append(current_dialogue)
+                        current_dialogue = {}
+        
+        # Handle last dialogue if exists
+        if current_dialogue and len(current_dialogue) == 1:
+            dialogues.append(current_dialogue)
+            
+        # Save to file
+        save_path = os.path.join(os.path.dirname(__file__), 'dialog.txt')
+        with open(save_path, 'w', encoding='utf-8') as f:
+            json.dump(dialogues, f, ensure_ascii=False, indent=2)
+            
+        return jsonify({'message': '课程保存成功'}), 200
+        
+    except Exception as e:
+        print(f"Error saving course: {str(e)}")
+        return jsonify({'error': f'保存失败: {str(e)}'}), 500
 
 if __name__ == '__main__':
     print("Starting Flask application...")  # 添加启动日志

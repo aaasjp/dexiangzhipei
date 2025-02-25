@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import axios from 'axios';
 import CloseIcon from '@mui/icons-material/Close';
+import SaveIcon from '@mui/icons-material/Save';
 
 interface SceneData {
   sceneName: string;
@@ -187,6 +188,20 @@ function App() {
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
+  };
+
+  const handleSaveCourse = async (content: string) => {
+    try {
+      const response = await axios.post('http://127.0.0.1:5000/save_course', {
+        course_content: content
+      });
+      if (response.status === 200) {
+        alert('课程保存成功！');
+      }
+    } catch (error) {
+      console.error('保存课程失败:', error);
+      alert('保存课程失败');
+    }
   };
 
   return (
@@ -379,6 +394,15 @@ function App() {
               sx={{ minWidth: '120px' }}
             >
               优化建课
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={() => handleSaveCourse(courseContent)}
+              startIcon={<SaveIcon />}
+              sx={{ minWidth: '120px' }}
+            >
+              保存课程
             </Button>
           </Box>
         </DialogContent>
